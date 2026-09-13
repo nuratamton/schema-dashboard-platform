@@ -1,6 +1,6 @@
 # TASKS — ordered implementation plan
 
-Twelve tasks, bottom-up. Each is one Claude Code session: implement, test, commit, stop.
+Fourteen tasks, bottom-up. Each is one Claude Code session: implement, test, commit, stop.
 
 Order matters — every task depends only on the ones above it, so nothing is ever stubbed twice.
 
@@ -11,7 +11,7 @@ standing context.
 
 ## Phase 1 — Foundations
 
-### ☐ T1 — Storage layer
+### ☑ T1 — Storage layer
 **Files:** `backend/store/base.py`, `backend/store/memory.py`
 **Requirements:** NFR-4, FR-1.9, FR-2.10, FR-3.11
 **Tests:** `tests/test_store.py`
@@ -26,7 +26,7 @@ In-memory implementation backed by dicts. No FastAPI imports. No domain knowledg
 
 ---
 
-### ☐ T2 — Error contract
+### ☑ T2 — Error contract
 **Files:** `backend/core/errors.py`
 **Requirements:** NFR-5, NFR-6
 
@@ -40,7 +40,7 @@ types the API layer maps to status codes.
 
 ---
 
-### ☐ T3 — Type registry
+### ☑ T3 — Type registry
 **Files:** `backend/core/types.py`
 **Requirements:** FR-1.4, FR-1.10, NFR-3
 **Tests:** `tests/test_types.py`
@@ -55,7 +55,7 @@ coercion.
 
 ---
 
-### ☐ T4 — Aggregation registry
+### ☑ T4 — Aggregation registry
 **Files:** `backend/core/aggregations.py`
 **Requirements:** NFR-2, FR-1.7, FR-3.8, FR-4.8
 **Tests:** `tests/test_aggregations.py`
@@ -71,7 +71,7 @@ empty-dataset result.
 
 ## Phase 2 — Schema and validation
 
-### ☐ T5 — Schema models and registration logic
+### ☑ T5 — Schema models and registration logic
 **Files:** `backend/core/models.py`, schema half of `backend/core/validation.py`
 **Requirements:** FR-1.1 → FR-1.8
 **Tests:** `tests/test_schema.py`
@@ -85,7 +85,7 @@ types, aggregation legal for field type, `required` defaults to `false`.
 
 ---
 
-### ☐ T6 — Row validation engine
+### ☑ T6 — Row validation engine
 **Files:** `backend/core/validation.py`
 **Requirements:** FR-2.3 → FR-2.9
 **Tests:** `tests/test_validation.py`
@@ -103,7 +103,7 @@ match, unknown fields rejected, null semantics, **all** issues collected across 
 
 ## Phase 3 — Dashboards
 
-### ☐ T7 — View handler registry
+### ☑ T7 — View handler registry
 **Files:** `backend/core/views.py`
 **Requirements:** NFR-1, FR-3.6 → FR-3.10, FR-4.5 → FR-4.7
 **Tests:** `tests/test_views.py`
@@ -117,7 +117,7 @@ and **resolve** (config + rows → output). `summary` and `table`.
 
 ---
 
-### ☐ T8 — Dashboard config validation
+### ☑ T8 — Dashboard config validation
 **Files:** `backend/core/dashboards.py`
 **Requirements:** FR-3.1 → FR-3.11
 **Tests:** `tests/test_dashboard_config.py`
@@ -133,7 +133,7 @@ each view handler's validate. Resolves the aggregation precedence chain.
 
 ---
 
-### ☐ T9 — Dashboard generation
+### ☑ T9 — Dashboard generation
 **Files:** `backend/core/dashboards.py`
 **Requirements:** FR-4.1 → FR-4.9
 **Tests:** `tests/test_dashboard_generation.py`
@@ -149,7 +149,7 @@ per-type branching in this module.
 
 ## Phase 4 — API and delivery
 
-### ☐ T10 — API layer
+### ☑ T10 — API layer
 **Files:** `backend/main.py`, `backend/api/*.py`
 **Requirements:** FR-1, FR-2, FR-3, FR-4, FR-5, NFR-6, NFR-7
 **Tests:** `tests/test_api.py`
@@ -165,7 +165,7 @@ status codes and the single error contract. Override FastAPI's default `422` bod
 
 ---
 
-### ☐ T11 — Genericity acceptance test
+### ☑ T11 — Genericity acceptance test
 **Files:** `tests/test_genericity.py`
 **Requirements:** RULE-0, section 6
 
@@ -179,7 +179,7 @@ in the same app instance, concurrently.
 
 ---
 
-### ☐ T12 — Minimal UI
+### ☑ T12 — Minimal UI
 **Files:** `frontend/index.html`
 **Requirements:** BR-1 → BR-5
 
@@ -195,7 +195,7 @@ One static file. Four panels, prefilled with working examples. No build step, no
 
 ## Phase 5 — Documentation
 
-### ☐ T13 — README
+### ☑ T13 — README
 **File:** `README.md`
 
 Setup, API reference, architecture, **the design decisions and why**, the spec gaps found and
@@ -205,7 +205,7 @@ how they were resolved, extension points, what was deliberately left out.
 > panel discussion is about reasoning, not code. Lead the spec-gaps section with the missing
 > schema binding in the dashboard config example.
 
-### ☐ T14 — AI report
+### ☑ T14 — AI report
 **File:** `AI_REPORT.md`
 
 **Maximum one page.** Written from `DECISIONS.md`.
@@ -220,8 +220,8 @@ how they were resolved, extension points, what was deliberately left out.
 
 | Phase | Tasks | Done |
 |---|---|---|
-| 1 Foundations | T1–T4 | ☐☐☐☐ |
-| 2 Schema & validation | T5–T6 | ☐☐ |
-| 3 Dashboards | T7–T9 | ☐☐☐ |
-| 4 API & delivery | T10–T12 | ☐☐☐ |
-| 5 Documentation | T13–T14 | ☐☐ |
+| 1 Foundations | T1–T4 | ☑☑☑☑ |
+| 2 Schema & validation | T5–T6 | ☑☑ |
+| 3 Dashboards | T7–T9 | ☑☑☑ |
+| 4 API & delivery | T10–T12 | ☑☑☑ |
+| 5 Documentation | T13–T14 | ☑☑ |

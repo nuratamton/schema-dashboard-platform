@@ -44,7 +44,7 @@ misread.
 
 | ID | Requirement | Acceptance criterion |
 |---|---|---|
-| FR-1.1 | A schema has a unique `name` | Two schemas may not share a name (see FR-1.8) |
+| FR-1.1 | A schema has a unique, usable `name` | Two schemas may not share a name (see FR-1.8). A name must round-trip through a URL path: `/` or whitespace-only → `422 INVALID_NAME` (D-35) |
 | FR-1.2 | A schema has a non-empty `fields` array | Empty `fields` → `422` |
 | FR-1.3 | Each field has a `name`, unique within the schema | Duplicate field name → `422` |
 | FR-1.4 | Each field has a `type` drawn from the type registry | Unknown type → `422` naming the supported types |
@@ -59,7 +59,7 @@ misread.
 | Type | Accepts | Explicitly rejects |
 |---|---|---|
 | `string` | `str` | everything else, including numbers |
-| `number` | `int`, `float` | `bool`, numeric strings such as `"1000"` |
+| `number` | finite `int`, `float` | `bool`, numeric strings such as `"1000"`, and `NaN` / `Infinity` (D-13) |
 | `integer` | `int` | `bool`, `float`, numeric strings |
 | `boolean` | `bool` | `0`, `1`, `"true"` |
 
@@ -118,7 +118,45 @@ misread.
 }
 ```
 
-`row` is a zero-based index into the submitted `rows` array.
+`row` is a zero-based index into the submitted `rows` array. It is omitted entirely — not sent as
+`null` — where there are no rows, which is every failure outside ingestion.
+
+**The error vocabulary.** One enum, shared by every endpoint (`core/errors.py`). *Envelope* codes
+answer "what kind of failure is this" and appear as the top-level `error`; *issue* codes answer
+"what specifically is wrong" and appear as `code` inside a `details[]` entry. The split is by
+typical role, not a partition — `DUPLICATE_NAME` is both, at resource scope and at field scope.
+
+| Code | Role | Status | Raised by |
+|---|---|---|---|
+| `VALIDATION_FAILED` | envelope | `422` | any collected validation failure — FR-1, FR-2, FR-3, and the request-envelope override |
+| `UNKNOWN_SCHEMA` | envelope | `404` | FR-2.1, FR-3.2 |
+| `UNKNOWN_DASHBOARD` | envelope | `404` | FR-4.1 |
+| `DUPLICATE_NAME` | both | `409` / issue | FR-1.8, FR-3.1 at resource scope; FR-1.3 and repeated `table` columns at field scope |
+| `AMBIGUOUS_SCHEMA` | envelope | `422` | FR-3.2 — `schema` omitted and more than one is registered, so the binding is not unique |
+| `NO_SCHEMA_REGISTERED` | envelope | `422` | FR-3.2 — `schema` omitted and none is registered at all |
+| `INTERNAL_ERROR` | envelope | `500` | Anything unforeseen. NFR-5's promise is only true if the unanticipated also answers in the contract (D-36) |
+| `TYPE_MISMATCH` | issue | `422` | FR-2.4 — a *value* failed a type that exists |
+| `MISSING_REQUIRED_FIELD` | issue | `422` | FR-2.3, FR-2.6; also "no usable value supplied" for a config key (FR-3.3, FR-3.10) |
+| `UNKNOWN_FIELD` | issue | `422` | FR-2.5, FR-3.6, FR-3.9 |
+| `UNKNOWN_TYPE` | issue | `422` | FR-1.4 (field type) and FR-3.4 (view type) — a *type name* the registry does not know. `expected` says which registry |
+| `UNKNOWN_AGGREGATION` | issue | `422` | FR-1.7, FR-3.7 — no such aggregation |
+| `INVALID_AGGREGATION` | issue | `422` | FR-1.7, FR-3.8 — it exists, but not for this field's type |
+| `AGGREGATION_REQUIRED` | issue | `422` | FR-3.7 — neither the view nor the schema supplied one |
+| `INVALID_NAME` | issue | `422` | FR-1.1, FR-3.1 — a name containing `/` (unfetchable: the path is decoded before routing) or only whitespace (D-35) |
+
+Five of these were added after the vocabulary was first written, each time because one code was
+being asked to mean two things, or because a failure had no code at all. `UNKNOWN_TYPE` and
+`UNKNOWN_AGGREGATION` arrived once FR-1 had a real consumer: reusing `TYPE_MISMATCH` for "that type
+does not exist" would be actively misleading, and "no such aggregation" and "not on this field"
+send whoever wrote the schema to two different places (D-17). `INVALID_NAME` separated from
+`DUPLICATE_NAME` because a client that retries a duplicate with a suffix would loop forever on an
+unusable one (D-35). `INTERNAL_ERROR` exists so that NFR-5's promise covers the unanticipated too,
+not only the failures that were thought of (D-36). `NO_SCHEMA_REGISTERED` split off from
+`AMBIGUOUS_SCHEMA` for the same reason — nothing is ambiguous when there is nothing to choose between, and the fix is to register
+a schema rather than to name one of several (D-33).
+
+The test for whether a new code is warranted is that one: **does it send the caller somewhere
+different?** If two failures have the same remedy, one code is enough.
 
 ---
 
@@ -142,15 +180,23 @@ misread.
 > **Note on the `schema` key.** The brief's example config omits any binding to a schema. With
 > more than one schema registered, a view referencing `field: amount` cannot be resolved. Since
 > supporting multiple concurrent use cases is the entire point of the platform, this is treated
-> as a gap in the brief and a required `schema` key is added. **This must be called out in
+> as a gap in the brief, and the config is given a `schema` key. **This must be called out in
 > `README.md`** — noticing the gap is worth more than the fix.
+>
+> The key is **optional**, not required. Making it mandatory would have rejected the brief's own
+> example payload, which is a bad answer to a gap we identified ourselves. Omitted, the binding is
+> inferred when exactly one schema is registered and refused when the answer is not unique — so
+> nothing is ever guessed, and the brief's example works verbatim. The binding is resolved once at
+> registration and stored, so a dashboard cannot change meaning when a later schema is registered.
+> See D-22 and D-23. The example above shows the key present, which is the form to prefer when
+> more than one use case is live.
 
 | ID | Requirement | Acceptance criterion |
 |---|---|---|
-| FR-3.1 | A config has a unique `name` | Duplicate → `409` |
-| FR-3.2 | A config has a `schema` naming a registered schema | Unknown → `404` |
-| FR-3.3 | A config has a non-empty `views` array | Empty → `422` |
-| FR-3.4 | Each view has a `type` present in the view registry | Unknown type → `422` listing supported types |
+| FR-3.1 | A config has a unique, usable `name` | Duplicate → `409`. `/` or whitespace-only → `422 INVALID_NAME` (D-35) |
+| FR-3.2 | A config *may* carry a `schema` naming a registered schema. Present but unknown → `404 UNKNOWN_SCHEMA`. Omitted: inferred when exactly one schema is registered; `422 AMBIGUOUS_SCHEMA` naming the candidates when more than one is; `422 NO_SCHEMA_REGISTERED` when none is. The resolved name is stored, so the binding never changes later | Present+known → bound; present+unknown → `404`; omitted+0 → `422 NO_SCHEMA_REGISTERED`; omitted+1 → inferred; omitted+n → `422 AMBIGUOUS_SCHEMA`. See D-22, D-23, D-33 |
+| FR-3.3 | A config has a non-empty `views` array | Omitted or empty → `422` carrying `MISSING_REQUIRED_FIELD` on `views` in `details`. Unlike FR-1.2 this is **not** an envelope rejection: every FR-3 problem is reported in one collected response |
+| FR-3.4 | Each view has a `type` present in the view registry, and no keys its handler does not declare | Unknown view type → `422` listing supported types. Unknown config key → `422 UNKNOWN_FIELD` at `views[n].<key>` (D-34) |
 | FR-3.5 | **Configs are fully validated against the schema at registration time, not at render time** | See below |
 | FR-3.6 | `summary` view: `field` must exist in the schema | Unknown field → `422 UNKNOWN_FIELD` |
 | FR-3.7 | `summary` view: `aggregation` resolves as *view value → schema field default → error* | Neither present → `422 AGGREGATION_REQUIRED` |
@@ -240,20 +286,38 @@ how the registries accommodate it.
 
 ---
 
-## 4. Bonus — minimal UI
+## 4. Bonus — the UI
 
-`frontend/index.html`. Single static file, no build step, no dependencies, no framework. Opens by
-double-click or is served by FastAPI at `/`.
+`frontend/` — `index.html`, `styles.css`, `app.js`, and two self-hosted variable fonts. Vanilla:
+no build step, no framework, no npm install, no CDN. **Served by FastAPI at `/`** (the app mounts
+`frontend/` at `/static`) — open `http://127.0.0.1:8000/`, not the file on disk.
+
+> Double-clicking the file does not work, and the reason is worth stating rather than leaving a
+> grader to discover. Over `file://` the page's origin is `null`, so every `fetch` to the API is
+> cross-origin and fails. The fix for that would be CORS middleware, which the brief does not ask
+> for; serving the file from the app removes the cause instead of configuring around it. See D-31.
+
+The brief's Bonus section asks for four things and names no constraints on how: *register schemas,
+submit data, register dashboard configurations, view generated dashboard data*. This section's
+earlier single-file, JSON-textarea specification was an elaboration of the brief, not the brief.
+It was lifted at D-38; these are the four operations as built.
 
 | ID | Requirement |
 |---|---|
-| BR-1 | Register a schema from a JSON textarea |
-| BR-2 | Submit rows from a JSON textarea |
-| BR-3 | Register a dashboard config from a JSON textarea |
-| BR-4 | Fetch and render a dashboard: summary views as value cards, table views as HTML tables |
-| BR-5 | Surface API validation errors verbatim — this is a debugging surface, not a product |
+| BR-1 | Register a schema by building its fields in a form: name, type, required, default aggregation. The type and aggregation controls are built from the registries, so an illegal pairing cannot be constructed from the form — an aggregation a type cannot carry is shown with the reason and left unselectable (D-55) |
+| BR-2 | Submit rows in a grid whose columns *are* the registered schema's fields, each cell typed by its field's declared type |
+| BR-3 | Register a dashboard config by choosing views and picking fields from the bound schema. The `schema` key may be left blank, and the UI states what blank will do at the current registration count (inferred / `AMBIGUOUS_SCHEMA` / `NO_SCHEMA_REGISTERED`) |
+| BR-4 | Fetch and render a dashboard: summary views as a determinations table, table views as results tables. No charts — the brief lists advanced visualisations as out of scope |
+| BR-5 | Surface API validation errors: every failure is read back in plain language, one sentence per `details[]` entry, ending in the fix. The **verbatim** body — envelope code, message, and every entry with its `row`, `field`, `code`, `expected` and `actual` — stays one disclosure away, so nothing in the contract is reachable only by paraphrase (D-54) |
+| BR-6 | Every write panel keeps a raw-JSON view of the exact request body, so the API shape stays visible |
 
-Textareas prefilled with working examples so a grader can click through in 30 seconds.
+Forms are prefilled with the brief's own example payloads, and the schema draft propagates live
+into the intake grid and the config builder, so a grader can click straight down the page. BR-5 is
+reached the way anyone reaches it — by getting something wrong, or by editing a payload in the
+raw-JSON view BR-6 keeps on every panel. There is no button that fails on purpose; see D-57.
+
+`tests/test_coverage.py` deliberately excludes `BR-*` from its assertion (see its module
+docstring): these are UI requirements, and the test suite covers the API.
 
 ---
 

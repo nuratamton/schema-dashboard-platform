@@ -2,7 +2,7 @@
 
 ## Tools used
 
-**Claude (web)** — before any code existed. The brief became `REQUIREMENTS.md` (numbered
+**Claude (web)** — Used to create`REQUIREMENTS.md` (numbered
 requirements, each with an acceptance criterion) and `TASKS.md` (fourteen ordered tasks, each
 naming its files, requirement IDs and tests). This is where the gaps in the brief were found — the
 example dashboard config binds to no schema, unresolvable once two schemas are registered (D-22).

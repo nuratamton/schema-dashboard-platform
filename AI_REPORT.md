@@ -2,77 +2,42 @@
 
 ## Tools used
 
-**Claude (web)** — Used to create`REQUIREMENTS.md` (numbered
-requirements, each with an acceptance criterion) and `TASKS.md` (fourteen ordered tasks, each
-naming its files, requirement IDs and tests). This is where the gaps in the brief were found — the
-example dashboard config binds to no schema, unresolvable once two schemas are registered (D-22).
+**Claude (web)** — Used to to turn the brief into a specification: numbered requirements each with a test that would prove it, and fourteen tasks in dependency order. This is also where I found the gap in the brief (the example dashboard config doesn't say which schema it belongs to, which stops working the moment a second schema is registered.)
 
-**Claude Code (terminal)** — one task per session against that spec, with `CLAUDE.md` as standing
-context. Implement, test, log the decision, stop. No session implemented ahead.
-
-The ordering is the point: the specification and the pass condition existed before the first line
-of code.
+**Claude Code (terminal)** — to build it, one task per session against that specification. Implement, test, write down the decision, stop. No session ran ahead into the next task.
 
 ## Example prompts
 
-Structural, before implementation:
+Planning, before any code:
 
-> Decompose this brief into numbered, individually testable requirements with acceptance
-> criteria. Flag anything the brief leaves ambiguous rather than resolving it silently.
+> Turn this brief into a numbered list of requirements. Each one needs a test that would prove it works. Where the brief is ambiguous, flag it — don't pick an answer for me
 
-Implementation (T6, verbatim from `TASKS.md`):
+Building, one task at a time:
 
-> Implement T6 — the row validation engine, FR-2.3 to FR-2.9. Important: rows arrive as plain
-> dicts and are validated by this engine, NOT by Pydantic — Pydantic would coerce "1000" to 1000.
-> Collect every issue across every row; do not stop at the first.
+> Build the row validation engine, requirements FR-2.3 to FR-2.9. Rows arrive as plain dicts and must be validated by our own code, not by Pydantic — Pydantic would turn the string "1000" into the number 1000 and hide the exact bug we're testing for. Collect every error across every row; don't stop at the first one.
 
-Adversarial, after the suite was green:
+Breaking it, once everything passed:
 
-> This is finished and all tests pass. Attack it. Find the inputs where it silently accepts bad
-> data or returns something the error contract does not define. Rank by severity.
+> All the tests pass. Now try to break it. Where does this accept bad data without complaining, or return something the error contract doesn't cover? Rank what you find by how bad it is.
 
-The third produced four real defects (D-34 to D-37) and reversed one decision.
+That last prompt is the one that earned its place. It found four real bugs.
 
 ## A suggestion I accepted
 
-D-15 rejected Pydantic `Literal` types for `type` and `aggregation`: hardcoding the registry's
-contents in `models.py` is the coupling NFR-3 exists to forbid. The cost was a worse `/docs` page,
-and I paid it twice (D-25).
+I turned down the obvious way to document the API, because it meant writing the list of supported field types into a second file and the whole point of the design is that adding a type touches one file. I took the worse documentation as the price.
 
-Claude proposed a third option I had not considered — a `json_schema_extra` **callable** reading
-`types.supported_types()` at schema-generation time. `/docs` now lists the supported types as an
-enum while no type name appears in `models.py`: registering a `date` type at runtime still
-requires zero edits there, and `/docs` picks it up. It recovered the documentation argument for
-`Literal` without `Literal` (D-27).
+Claude offered a third option I hadn't thought of: generate that list at startup by asking the type registry what it holds. The docs now show every supported type, no type name is written down outside the registry, and adding one still touches one file. It removed a cost I had assumed was unavoidable.
 
 ## A suggestion I rejected
 
-Opened off disk the UI's origin is `null`, so every `fetch` to the API is cross-origin and fails.
-The suggestion was CORS middleware. It is the reflex fix and it works.
+Opened directly from disk, the UI can't talk to the API — the browser treats it as a different origin and blocks every request. The suggestion was to add CORS middleware.
 
-I served `frontend/` from FastAPI instead — four lines, same-origin, problem gone (D-31). CORS
-middleware means shipping a permissive cross-origin policy to solve a problem created entirely by
-how a file was opened. Removing the cause beats configuring around it, and an unrequested
-security-relevant default is the wrong thing to hand a bank.
+I rejected that and had FastAPI serve the page instead. CORS middleware would have meant shipping a permissive cross-origin policy in a submission to a bank, to fix a problem caused by how a file was opened. Removing the cause beats configuring around it.
 
-## How I validated the solution
+## How I validated it
 
-In order of strength:
+The test`tests/test_genericity.py`: a completely different use case where customers run end to end in the same app, both dashboards live at once, with zero lines of the backend changed. If that passes the platform is generic.
 
-1. **`tests/test_genericity.py`** — a second, unrelated use case (`customer`) end to end in the
-   same app instance as `trade`, both dashboards live and correct simultaneously, zero lines of
-   `backend/` changed. This is the definition of done.
-2. **Two guard tests** — RULE-0 asserts no domain vocabulary appears anywhere in `backend/`;
-   `test_coverage.py` asserts every requirement ID is referenced by some test, and by more than
-   the guard itself. The second caught a mistyped ID on its first run.
-3. **529 tests written from the requirements, not the implementation** — the `bool`/`number`
-   trap, `"1000"` against `number`, `null` in required vs optional, empty-dataset aggregations,
-   multi-error batches.
-4. **The adversarial pass**, which falsified a decision I had reasoned my way into. D-13 accepted
-   `NaN` because its consequence would be *visible*. It is not: FastAPI's encoder turns `NaN` into
-   `null`, and `null` is exactly what FR-4.8 reserves for "no data" — the dashboard reported an
-   empty result over a non-empty dataset. Reversed, and recorded as a reversal rather than quietly
-   corrected.
+Two guard tests back it up. One greps the backend for domain words like `trade` and`amount` and fails if it finds any, so genericity is enforced rather than remembered. The other checks every requirement ID is referenced by a real test, it caught a typo'd ID on its first run. Underneath those, 529 tests written from the requirements rather than from the finished code.
 
-AI wrote most of this code. The pass condition was defined before the code existed, and the tests
-were derived from the requirements rather than from what was built.
+The most useful thing I did was the breaking prompt above, because it proved one of my own decisions wrong. I'd allowed **`NaN` values through, reasoning that a dashboard showing**`NaN` would be obviously broken and someone would notice.FastAPI quietly converts`NaN` to`null`, and`null` is what this API returns for "no data here" so the dashboard reported an empty result while also reporting three rows.

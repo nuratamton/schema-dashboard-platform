@@ -1,11 +1,246 @@
-<!-- T12 -- bonus UI. REQUIREMENTS.md section 4 (BR-1..BR-5).
+<!DOCTYPE html>
+<!-- Bonus UI. round_1_assignment.pdf, "Bonus (Optional)": register schemas,
+     submit data, register dashboard configurations, view generated dashboard data.
+     Direction: .impeccable/surfaces/frontend-index-html.md -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Schema-Driven Dashboard Platform</title>
+<meta name="description" content="Declare a specification, submit specimens against it, configure a report, issue a certificate.">
+<link rel="preload" href="/static/fonts/archivo-var-latin.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="/static/fonts/sometype-mono-var-latin.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
 
-     One self-contained file. No framework, no build step, no CDN.
-     Four panels, each prefilled with a working example:
-       1. Register schema    (POST /schema)
-       2. Submit data        (POST /ingest)
-       3. Register dashboard (POST /dashboard)
-       4. View dashboard     (GET  /dashboard/{name})
-     Summary views render as value cards, table views as HTML tables.
-     API errors are shown verbatim.
--->
+<svg class="sprite" aria-hidden="true" focusable="false">
+  <symbol id="i-add" viewBox="0 0 16 16"><path d="M8 3v10M3 8h10"/></symbol>
+  <symbol id="i-del" viewBox="0 0 16 16"><path d="M4 4l8 8M12 4l-8 8"/></symbol>
+  <symbol id="i-swap" viewBox="0 0 16 16"><path d="M2 5h9M9 2.5 11.5 5 9 7.5M14 11H5M7 8.5 4.5 11 7 13.5"/></symbol>
+  <symbol id="i-check" viewBox="0 0 16 16"><path d="m3 8.5 3.5 3.5L13 5"/></symbol>
+  <symbol id="i-flag" viewBox="0 0 16 16"><path d="M8 2v8M8 14v.5"/><path d="M8 2 3 10h10L8 2z" class="fill"/></symbol>
+</svg>
+
+<header class="letterhead">
+  <div class="letterhead-in">
+    <h1>Schema&#8209;Driven<br>Dashboard Platform</h1>
+    <dl class="issuing">
+      <div><dt>Endpoint</dt><dd class="mono" id="meta-origin">&mdash;</dd></div>
+      <div><dt>Storage</dt><dd>In&#8209;memory, not persisted</dd></div>
+      <div><dt>Method</dt><dd>Configuration only; no use&#8209;case code</dd></div>
+    </dl>
+  </div>
+</header>
+
+<main class="sheet">
+
+  <!-- 1 ------------------------------------------------------------------ -->
+  <section class="sec" id="sec-spec" data-phase="open">
+    <div class="sec-head">
+      <h2><span class="sec-no">1</span>Specification</h2>
+      <div class="head-meta">
+        <code class="endpoint">POST /schema</code>
+        <span class="stamp" id="stamp-spec">No specification on file</span>
+      </div>
+    </div>
+    <p class="note">Declare the parameters a record must satisfy. Everything below this section is
+      governed by what you write here &mdash; the intake grid and the report fields rebuild as you type.</p>
+
+    <div class="mode" data-mode-host="spec">
+      <div class="form-view">
+        <div class="field-row">
+          <label class="field">
+            <span class="lab">Specification name</span>
+            <input type="text" id="spec-name" value="trade" spellcheck="false" autocomplete="off">
+          </label>
+        </div>
+
+        <div class="scroll">
+        <table class="grid" id="spec-grid">
+          <thead>
+            <tr>
+              <th class="c-idx">#</th>
+              <th>Parameter<span class="t k">name</span></th>
+              <th class="c-type">Type<span class="t k">type</span></th>
+              <th class="c-req">Required<span class="t k">required</span></th>
+              <th class="c-agg">Default determination<span class="t k">aggregation</span></th>
+              <th class="c-act"><span class="vh">Remove</span></th>
+            </tr>
+          </thead>
+          <tbody id="spec-rows"></tbody>
+        </table>
+        </div>
+
+        <div class="grid-foot">
+          <button type="button" class="btn ghost" id="spec-add">
+            <svg class="ic"><use href="#i-add"/></svg>Add parameter</button>
+        </div>
+      </div>
+
+      <div class="json-view" hidden>
+        <label class="field">
+          <span class="lab">POST /schema &mdash; request body</span>
+          <textarea id="spec-json" rows="16" spellcheck="false"></textarea>
+        </label>
+      </div>
+    </div>
+
+    <div class="actions">
+      <button type="button" class="btn primary" id="spec-send">Register specification</button>
+      <button type="button" class="btn" id="spec-reset">Reset</button>
+      <button type="button" class="btn ghost toggle" data-toggle="spec">
+        <svg class="ic"><use href="#i-swap"/></svg><span>JSON</span></button>
+    </div>
+    <div class="result" id="spec-result" aria-live="polite"></div>
+  </section>
+
+  <!-- 2 ------------------------------------------------------------------ -->
+  <section class="sec" id="sec-intake" data-phase="locked">
+    <div class="sec-head">
+      <h2><span class="sec-no">2</span>Specimen intake</h2>
+      <div class="head-meta">
+        <code class="endpoint">POST /ingest</code>
+        <span class="stamp" id="stamp-intake">Awaiting specification</span>
+      </div>
+    </div>
+    <p class="note">Each row is one record, checked against the specification before anything is
+      stored. Intake is all&#8209;or&#8209;nothing: a single nonconforming row rejects the whole batch.</p>
+
+    <div class="bindbar">
+      <label class="field inline">
+        <span class="lab">Against specification</span>
+        <select id="intake-bind"></select>
+      </label>
+    </div>
+    <p class="bind-note" id="intake-bindnote"></p>
+
+    <div class="mode" data-mode-host="intake">
+      <div class="form-view">
+        <div class="scroll">
+          <table class="grid" id="intake-grid">
+            <thead><tr id="intake-head"></tr></thead>
+            <tbody id="intake-rows"></tbody>
+          </table>
+        </div>
+        <div class="grid-foot">
+          <button type="button" class="btn ghost" id="intake-add">
+            <svg class="ic"><use href="#i-add"/></svg>Add specimen</button>
+        </div>
+      </div>
+
+      <div class="json-view" hidden>
+        <label class="field">
+          <span class="lab">POST /ingest &mdash; request body</span>
+          <textarea id="intake-json" rows="16" spellcheck="false"></textarea>
+        </label>
+      </div>
+    </div>
+
+    <div class="actions">
+      <button type="button" class="btn primary" id="intake-send">Submit batch</button>
+      <button type="button" class="btn ghost toggle" data-toggle="intake">
+        <svg class="ic"><use href="#i-swap"/></svg><span>JSON</span></button>
+    </div>
+
+    <div class="result" id="intake-result" aria-live="polite"></div>
+  </section>
+
+  <!-- 3 ------------------------------------------------------------------ -->
+  <section class="sec" id="sec-format" data-phase="locked">
+    <div class="sec-head">
+      <h2><span class="sec-no">3</span>Report format</h2>
+      <div class="head-meta">
+        <code class="endpoint">POST /dashboard</code>
+        <span class="stamp" id="stamp-format">Awaiting specification</span>
+      </div>
+    </div>
+    <p class="note">Choose what the certificate reports. The format is checked against the
+      specification now, at registration, not when the certificate is drawn.</p>
+
+    <div class="bindbar">
+      <label class="field inline">
+        <span class="lab">Report name</span>
+        <input type="text" id="format-name" value="trade-dashboard" spellcheck="false" autocomplete="off">
+      </label>
+      <label class="field inline">
+        <span class="lab">Bound specification</span>
+        <select id="format-bind"></select>
+      </label>
+    </div>
+    <p class="bind-note" id="format-bindnote"></p>
+
+    <div class="mode" data-mode-host="format">
+      <div class="form-view">
+        <div class="views" id="format-views"></div>
+        <div class="grid-foot">
+          <button type="button" class="btn ghost" data-addview="summary">
+            <svg class="ic"><use href="#i-add"/></svg>Add determination</button>
+          <button type="button" class="btn ghost" data-addview="table">
+            <svg class="ic"><use href="#i-add"/></svg>Add results table</button>
+        </div>
+      </div>
+
+      <div class="json-view" hidden>
+        <label class="field">
+          <span class="lab">POST /dashboard &mdash; request body</span>
+          <textarea id="format-json" rows="16" spellcheck="false"></textarea>
+        </label>
+      </div>
+    </div>
+
+    <div class="actions">
+      <button type="button" class="btn primary" id="format-send">Register format</button>
+      <button type="button" class="btn ghost toggle" data-toggle="format">
+        <svg class="ic"><use href="#i-swap"/></svg><span>JSON</span></button>
+    </div>
+    <div class="result" id="format-result" aria-live="polite"></div>
+  </section>
+
+  <!-- 4 ------------------------------------------------------------------ -->
+  <section class="sec" id="sec-cert" data-phase="locked">
+    <div class="sec-head">
+      <h2><span class="sec-no">4</span>Certificate</h2>
+      <div class="head-meta">
+        <code class="endpoint">GET /dashboard/&lbrace;name&rbrace;</code>
+        <span class="stamp" id="stamp-cert">No format registered</span>
+      </div>
+    </div>
+    <p class="note">Generated from the specification, the specimens on file, and the report format.
+      Nothing in the backend knows what any of them mean.</p>
+
+    <div class="bindbar">
+      <label class="field inline">
+        <span class="lab">Report</span>
+        <select id="cert-pick"></select>
+      </label>
+    </div>
+
+    <div class="actions">
+      <button type="button" class="btn primary" id="cert-send">Draw certificate</button>
+      <button type="button" class="btn ghost toggle" data-toggle="cert">
+        <svg class="ic"><use href="#i-swap"/></svg><span>JSON</span></button>
+    </div>
+    <div class="result" id="cert-result" aria-live="polite"></div>
+    <div class="json-view" hidden data-mode-host="cert">
+      <label class="field">
+        <span class="lab">GET /dashboard/&lbrace;name&rbrace; &mdash; response body</span>
+        <textarea id="cert-json" rows="16" spellcheck="false" readonly></textarea>
+      </label>
+    </div>
+  </section>
+
+</main>
+
+<footer class="authorization">
+  <div class="auth-in">
+    <div class="auth-item"><span class="k">Specifications</span><span class="v mono" id="tally-schemas">0</span></div>
+    <div class="auth-item"><span class="k">Specimens on file</span><span class="v mono" id="tally-rows">&mdash;</span></div>
+    <div class="auth-item"><span class="k">Formats</span><span class="v mono" id="tally-dash">0</span></div>
+    <p class="auth-seal">Generated from configuration. No backend code references any specification by name.</p>
+  </div>
+</footer>
+
+<script src="/static/app.js"></script>
+</body>
+</html>

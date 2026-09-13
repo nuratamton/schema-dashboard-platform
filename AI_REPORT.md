@@ -20,8 +20,6 @@ Breaking it, once everything passed:
 
 > All the tests pass. Now try to break it. Where does this accept bad data without complaining, or return something the error contract doesn't cover? Rank what you find by how bad it is.
 
-That last prompt is the one that earned its place. It found four real bugs.
-
 ## A suggestion I accepted
 
 I turned down the obvious way to document the API, because it meant writing the list of supported field types into a second file and the whole point of the design is that adding a type touches one file. I took the worse documentation as the price.
